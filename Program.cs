@@ -1,5 +1,4 @@
-﻿using Microsoft.VisualBasic;
-using ThreeHousesSlave;
+﻿using ThreeHousesSlave;
 
 Console.Title = "Tree Houses Translation Slave Tool";
 if (args == null || args.Length != 1)
@@ -36,7 +35,7 @@ var ExtractFileID = (string Name) =>
 var Files = Directory.GetFiles(Dir, "*.bin");
 var TxtFiles = Directory.GetFiles(Dir, "*.txt");
 
-if (!Files.Any(x => x.EndsWith("_str.bin")) && !Files.Any(x => x.EndsWith("_scene.bin")))
+if (!Files.Any(x => x.EndsWith("_str.bin")) && !Files.Any(x => x.EndsWith("_scene.bin")) && !Files.Any(x => x.EndsWith("_caption.bin")))
 {
     Console.WriteLine("Running Text Detection...");
     foreach (var FilePath in Files.OrderBy(x => ExtractFileID(x)))
@@ -50,10 +49,13 @@ if (!Files.Any(x => x.EndsWith("_str.bin")) && !Files.Any(x => x.EndsWith("_scen
             {
                 NewName = $"{ExtractFileID(FilePath)}_str.bin";
             }
-
-            if (SceneText.IsValid(Stream))
+            else if (SceneText.IsValid(Stream))
             {
                 NewName = $"{ExtractFileID(FilePath)}_scene.bin";
+            }
+            else if (Caption.IsValid(Stream))
+            {
+                NewName = $"{ExtractFileID(FilePath)}_caption.bin";
             }
         }
 
@@ -131,7 +133,7 @@ var Escaper = (string String, bool Enable) =>
 };
 
 
-if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) && !TxtFiles.Any(x => x.EndsWith("_scene.txt")))
+if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) && !TxtFiles.Any(x => x.EndsWith("_scene.txt")) && !TxtFiles.Any(x => x.EndsWith("_caption.txt")))
 {
     Console.WriteLine("Running Text Extraction...");
     foreach (var FilePath in Files.Where(x => x.EndsWith("_str.bin")).OrderBy(x => ExtractFileID(x)))
@@ -151,6 +153,17 @@ if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) && !TxtFiles.Any(x => x.EndsWith(
         string TxtPath = Path.ChangeExtension(FilePath, "txt");
         var Data = File.ReadAllBytes(FilePath);
         var Script = new SceneText(Data);
+        var Lines = Script.Import();
+        var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
+        File.WriteAllLines(TxtPath, Escaped);
+    }
+
+    foreach (var FilePath in Files.Where(x => x.EndsWith("_caption.bin")).OrderBy(x => ExtractFileID(x)))
+    {
+        Console.WriteLine($"Dumping {Path.GetFileName(FilePath)}...");
+        string TxtPath = Path.ChangeExtension(FilePath, "txt");
+        var Data = File.ReadAllBytes(FilePath);
+        var Script = new Caption(Data);
         var Lines = Script.Import();
         var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
         File.WriteAllLines(TxtPath, Escaped);
@@ -185,6 +198,24 @@ foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_scene.txt")).OrderBy(x
     string NewBinPath = BinPath + ".new";
     var Data = File.ReadAllBytes(BinPath);
     var Script = new SceneText(Data);
+    var Lines = Script.Import();
+    var NewText = File.ReadAllLines(FilePath);
+    for (int i = 0; i < Lines.Length; i++)
+    {
+        Lines[i] = Escaper(NewText[i], false);
+    }
+
+    var NewData = Script.Export(Lines);
+    File.WriteAllBytes(NewBinPath, NewData);
+}
+
+foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_caption.txt")).OrderBy(x => ExtractFileID(x)))
+{
+    Console.WriteLine($"Inserting {Path.GetFileName(FilePath)}...");
+    string BinPath = Path.ChangeExtension(FilePath, "bin");
+    string NewBinPath = BinPath + ".new";
+    var Data = File.ReadAllBytes(BinPath);
+    var Script = new Caption(Data);
     var Lines = Script.Import();
     var NewText = File.ReadAllLines(FilePath);
     for (int i = 0; i < Lines.Length; i++)

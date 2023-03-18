@@ -2,7 +2,7 @@
   "profiles": {
     "ThreeHousesSlave": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\Marcus\\AppData\\Roaming\\yuzu\\dump\\010055D009F78000\\string\\str\\en\""
+      "commandLineArgs": "\"C:\\Users\\Marcus\\AppData\\Roaming\\yuzu\\dump\\010055D009F78000\\romfs\\out\\caption\\en\""
     }
   }
 }
