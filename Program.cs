@@ -57,6 +57,10 @@ if (!Files.Any(x => x.EndsWith("_str.bin")) && !Files.Any(x => x.EndsWith("_scen
             {
                 NewName = $"{ExtractFileID(FilePath)}_caption.bin";
             }
+            else if (ScrData.IsValid(Stream))
+            {
+                NewName = $"{ExtractFileID(FilePath)}_scrdata.bin";
+            }
         }
 
         if (NewName == null)
@@ -133,7 +137,10 @@ var Escaper = (string String, bool Enable) =>
 };
 
 
-if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) && !TxtFiles.Any(x => x.EndsWith("_scene.txt")) && !TxtFiles.Any(x => x.EndsWith("_caption.txt")))
+if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) 
+    && !TxtFiles.Any(x => x.EndsWith("_scene.txt"))
+    && !TxtFiles.Any(x => x.EndsWith("_caption.txt"))
+    && !TxtFiles.Any(x => x.EndsWith("_scrdata.txt")))
 {
     Console.WriteLine("Running Text Extraction...");
     foreach (var FilePath in Files.Where(x => x.EndsWith("_str.bin")).OrderBy(x => ExtractFileID(x)))
@@ -164,6 +171,17 @@ if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) && !TxtFiles.Any(x => x.EndsWith(
         string TxtPath = Path.ChangeExtension(FilePath, "txt");
         var Data = File.ReadAllBytes(FilePath);
         var Script = new Caption(Data);
+        var Lines = Script.Import();
+        var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
+        File.WriteAllLines(TxtPath, Escaped);
+    }
+
+    foreach (var FilePath in Files.Where(x => x.EndsWith("_scrdata.bin")).OrderBy(x => ExtractFileID(x)))
+    {
+        Console.WriteLine($"Dumping {Path.GetFileName(FilePath)}...");
+        string TxtPath = Path.ChangeExtension(FilePath, "txt");
+        var Data = File.ReadAllBytes(FilePath);
+        var Script = new ScrData(Data);
         var Lines = Script.Import();
         var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
         File.WriteAllLines(TxtPath, Escaped);
@@ -216,6 +234,24 @@ foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_caption.txt")).OrderBy
     string NewBinPath = BinPath + ".new";
     var Data = File.ReadAllBytes(BinPath);
     var Script = new Caption(Data);
+    var Lines = Script.Import();
+    var NewText = File.ReadAllLines(FilePath);
+    for (int i = 0; i < Lines.Length; i++)
+    {
+        Lines[i] = Escaper(NewText[i], false);
+    }
+
+    var NewData = Script.Export(Lines);
+    File.WriteAllBytes(NewBinPath, NewData);
+}
+
+foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_scrdata.txt")).OrderBy(x => ExtractFileID(x)))
+{
+    Console.WriteLine($"Inserting {Path.GetFileName(FilePath)}...");
+    string BinPath = Path.ChangeExtension(FilePath, "bin");
+    string NewBinPath = BinPath + ".new";
+    var Data = File.ReadAllBytes(BinPath);
+    var Script = new ScrData(Data);
     var Lines = Script.Import();
     var NewText = File.ReadAllLines(FilePath);
     for (int i = 0; i < Lines.Length; i++)
