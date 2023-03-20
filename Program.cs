@@ -35,7 +35,13 @@ var ExtractFileID = (string Name) =>
 var Files = Directory.GetFiles(Dir, "*.bin");
 var TxtFiles = Directory.GetFiles(Dir, "*.txt");
 
-if (!Files.Any(x => x.EndsWith("_str.bin")) && !Files.Any(x => x.EndsWith("_scene.bin")) && !Files.Any(x => x.EndsWith("_caption.bin")))
+if (!Files.Any(x => x.EndsWith("_str.bin")) 
+    && !Files.Any(x => x.EndsWith("_scene.bin"))
+    && !Files.Any(x => x.EndsWith("_caption.bin"))
+    && !Files.Any(x => x.EndsWith("_scrdata.bin"))
+    && !Files.Any(x => x.EndsWith("_scrdataT2.bin"))
+    && !Files.Any(x => x.EndsWith("_scrdataT3.bin"))
+    && !Files.Any(x => x.EndsWith("_tuscrdata.bin")))
 {
     Console.WriteLine("Running Text Detection...");
     foreach (var FilePath in Files.OrderBy(x => ExtractFileID(x)))
@@ -60,6 +66,18 @@ if (!Files.Any(x => x.EndsWith("_str.bin")) && !Files.Any(x => x.EndsWith("_scen
             else if (ScrData.IsValid(Stream))
             {
                 NewName = $"{ExtractFileID(FilePath)}_scrdata.bin";
+            }
+            else if (ScrDataT2.IsValid(Stream))
+            {
+                NewName = $"{ExtractFileID(FilePath)}_scrdataT2.bin";
+            }
+            else if (ScrDataT3.IsValid(Stream))
+            {
+                NewName = $"{ExtractFileID(FilePath)}_scrdataT3.bin";
+            }
+            else if (TuScrData.IsValid(Stream))
+            {
+                NewName = $"{ExtractFileID(FilePath)}_tuscrdata.bin";
             }
         }
 
@@ -140,7 +158,10 @@ var Escaper = (string String, bool Enable) =>
 if (!TxtFiles.Any(x => x.EndsWith("_str.txt")) 
     && !TxtFiles.Any(x => x.EndsWith("_scene.txt"))
     && !TxtFiles.Any(x => x.EndsWith("_caption.txt"))
-    && !TxtFiles.Any(x => x.EndsWith("_scrdata.txt")))
+    && !TxtFiles.Any(x => x.EndsWith("_scrdata.txt"))
+    && !TxtFiles.Any(x => x.EndsWith("_scrdataT2.txt"))
+    && !TxtFiles.Any(x => x.EndsWith("_scrdataT3.txt"))
+    && !TxtFiles.Any(x => x.EndsWith("_tuscrdata.txt")))
 {
     Console.WriteLine("Running Text Extraction...");
     foreach (var FilePath in Files.Where(x => x.EndsWith("_str.bin")).OrderBy(x => ExtractFileID(x)))
@@ -182,6 +203,28 @@ if (!TxtFiles.Any(x => x.EndsWith("_str.txt"))
         string TxtPath = Path.ChangeExtension(FilePath, "txt");
         var Data = File.ReadAllBytes(FilePath);
         var Script = new ScrData(Data);
+        var Lines = Script.Import();
+        var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
+        File.WriteAllLines(TxtPath, Escaped);
+    }
+
+    foreach (var FilePath in Files.Where(x => x.EndsWith("_scrdataT2.bin")).OrderBy(x => ExtractFileID(x)))
+    {
+        Console.WriteLine($"Dumping {Path.GetFileName(FilePath)}...");
+        string TxtPath = Path.ChangeExtension(FilePath, "txt");
+        var Data = File.ReadAllBytes(FilePath);
+        var Script = new ScrDataT2(Data);
+        var Lines = Script.Import();
+        var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
+        File.WriteAllLines(TxtPath, Escaped);
+    }
+
+    foreach (var FilePath in Files.Where(x => x.EndsWith("_scrdataT3.bin")).OrderBy(x => ExtractFileID(x)))
+    {
+        Console.WriteLine($"Dumping {Path.GetFileName(FilePath)}...");
+        string TxtPath = Path.ChangeExtension(FilePath, "txt");
+        var Data = File.ReadAllBytes(FilePath);
+        var Script = new ScrDataT2(Data);
         var Lines = Script.Import();
         var Escaped = Lines.Select(x => Escaper(x, true)).ToArray();
         File.WriteAllLines(TxtPath, Escaped);
@@ -252,6 +295,42 @@ foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_scrdata.txt")).OrderBy
     string NewBinPath = BinPath + ".new";
     var Data = File.ReadAllBytes(BinPath);
     var Script = new ScrData(Data);
+    var Lines = Script.Import();
+    var NewText = File.ReadAllLines(FilePath);
+    for (int i = 0; i < Lines.Length; i++)
+    {
+        Lines[i] = Escaper(NewText[i], false);
+    }
+
+    var NewData = Script.Export(Lines);
+    File.WriteAllBytes(NewBinPath, NewData);
+}
+
+foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_scrdataT2.txt")).OrderBy(x => ExtractFileID(x)))
+{
+    Console.WriteLine($"Inserting {Path.GetFileName(FilePath)}...");
+    string BinPath = Path.ChangeExtension(FilePath, "bin");
+    string NewBinPath = BinPath + ".new";
+    var Data = File.ReadAllBytes(BinPath);
+    var Script = new ScrDataT2(Data);
+    var Lines = Script.Import();
+    var NewText = File.ReadAllLines(FilePath);
+    for (int i = 0; i < Lines.Length; i++)
+    {
+        Lines[i] = Escaper(NewText[i], false);
+    }
+
+    var NewData = Script.Export(Lines);
+    File.WriteAllBytes(NewBinPath, NewData);
+}
+
+foreach (var FilePath in TxtFiles.Where(x => x.EndsWith("_scrdataT3.txt")).OrderBy(x => ExtractFileID(x)))
+{
+    Console.WriteLine($"Inserting {Path.GetFileName(FilePath)}...");
+    string BinPath = Path.ChangeExtension(FilePath, "bin");
+    string NewBinPath = BinPath + ".new";
+    var Data = File.ReadAllBytes(BinPath);
+    var Script = new ScrDataT3(Data);
     var Lines = Script.Import();
     var NewText = File.ReadAllLines(FilePath);
     for (int i = 0; i < Lines.Length; i++)
