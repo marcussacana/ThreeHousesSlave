@@ -36,123 +36,7 @@ namespace ThreeHousesSlave
             public uint HeaderSize;
 
             [RArray(nameof(FlagSize))]
-            public byte[] Flags;
-        }
-
-        struct Table0Entry {
-
-            public Table0Entry()
-            {
-                Lines = new uint[3];
-                Voices = new uint[3];
-                Portrait = 0;
-                Unk = 0;
-            }
-
-            [FArray(3)]
-            public uint[] Lines;
-
-            [FArray(3)]
-            public uint[] Voices;
-
-            public uint Portrait;
-
-            public uint Unk;
-        }
-
-        struct Table1Entry
-        {
-            public Table1Entry()
-            {
-                Lines = new uint[8];
-            }
-
-            [FArray(8)]
-            public uint[] Lines;
-        }
-
-        struct Table2Entry
-        {
-            public Table2Entry()
-            {
-                Lines = new uint[8];
-                Unk = new uint[4];
-            }
-
-            [FArray(8)]
-            public uint[] Lines;
-
-            [FArray(4)]
-            public uint[] Unk;
-        }
-
-        struct Table3Entry
-        {
-            public Table3Entry()
-            {
-                Lines = new uint[2];
-                Unk = new uint[3];
-            }
-
-            [FArray(2)]
-            public uint[] Lines;
-
-            [FArray(3)]
-            public uint[] Unk;
-        }
-        struct Table4Entry
-        {
-            public Table4Entry()
-            {
-                Lines = new uint[1];
-                Unk = new uint[3];
-            }
-
-            [FArray(1)]
-            public uint[] Lines;
-
-            [FArray(3)]
-            public uint[] Unk;
-        }
-        struct Table5Entry
-        {
-            public Table5Entry()
-            {
-                Lines = new uint[1];
-                Unk = new uint[3];
-            }
-
-            [FArray(1)]
-            public uint[] Lines;
-
-            [FArray(3)]
-            public uint[] Unk;
-        }
-
-        struct Table6Entry
-        {
-            public Table6Entry()
-            {
-                Lines = new uint[7];
-            }
-
-            [FArray(7)]
-            public uint[] Lines;
-        }
-
-        struct Table7Entry
-        {
-            public Table7Entry()
-            {
-                Lines = new uint[0];
-                Unk = new uint[3];  
-            }
-
-            [FArray(0)]
-            public uint[] Lines;
-
-            [FArray(3)]
-            public uint[] Unk;
+            public byte[] Flags;//0 = string, 1 = data
         }
 
         byte[] Script;
@@ -164,11 +48,14 @@ namespace ThreeHousesSlave
 
         ScrDataHeader MainHeader;
 
-        public string[] Import()
+        public string[][] Import()
         {
             using var MainScript = new MemoryStream(Script);
 
             var MainReader = new StructReader(MainScript);
+
+            if (MainReader.PeekUInt() > 100)
+                throw new InvalidDataException("Too Many Languages");
 
             MainHeader = new ScrDataHeader();
             MainReader.ReadStruct(ref MainHeader);
@@ -185,13 +72,24 @@ namespace ThreeHousesSlave
                 MainReader.Read(LanguagesData[i], 0, (int)LanguageInfo.Size);
             }
 
-            List<string> Strings = new List<string>();
+            List<string[]> Strings = new List<string[]>();
             for (int i = 0; i < MainHeader.LanguagesCount; i++)
             {
-                Strings.AddRange(ReadLanguage(LanguagesData[i]));
+                Strings.Add(ReadLanguage(LanguagesData[i]));
             }
 
             return Strings.ToArray();
+        }
+
+        public byte[] Export(string[][] Strings)
+        {
+            List<string> AllStrings = new List<string>();
+            foreach (var Lang in Strings)
+            {
+                AllStrings.AddRange(Lang);
+            }
+
+            return Export(AllStrings.ToArray());
         }
 
         public byte[] Export(string[] Strings)
@@ -222,6 +120,7 @@ namespace ThreeHousesSlave
             return OutBuffer.ToArray();
         }
 
+        long TableCount = -1;
         public string[] ReadLanguage(byte[] Data)
         {
             using var LanguageStream = new MemoryStream(Data);
@@ -231,7 +130,13 @@ namespace ThreeHousesSlave
             var LanguageReader = new StructReader(LanguageStream);
             LanguageReader.ReadStruct(ref LanguageHeader);
 
-            if (LanguageHeader.TableCount != 8)
+            if (TableCount == -1)
+                TableCount = LanguageHeader.TableCount;
+
+            if (TableCount != LanguageHeader.TableCount)
+                throw new InvalidDataException("Language Table Count Missmatch");
+
+            if (LanguageHeader.TableCount == 0)
                 throw new InvalidDataException("Invalid Language Table Count");
 
             var TablesData = new byte[LanguageHeader.TableCount][];
@@ -248,7 +153,7 @@ namespace ThreeHousesSlave
             List<string> Strings = new List<string>();
             for (int i = 0; i < LanguageHeader.TableCount; i++)
             {
-                Strings.AddRange(ReadTable(TablesData[i], i));
+                Strings.AddRange(ReadTable(TablesData[i]));
             }
 
             return Strings.ToArray();
@@ -261,7 +166,7 @@ namespace ThreeHousesSlave
             var LanguageHeader = new LanguageEntry();
             var LanguageWriter = new StructWriter(LanguageStream);
 
-            LanguageHeader.TableCount = 8;
+            LanguageHeader.TableCount = (uint)TableCount;
             LanguageHeader.TablesInfo = new EntryInfo[LanguageHeader.TableCount];
 
             uint HeaderSize = (LanguageHeader.TableCount * 8) + 4;
@@ -291,7 +196,7 @@ namespace ThreeHousesSlave
             return LanguageStream.ToArray();
         }
 
-        private string[] ReadTable(byte[] Data, int Type)
+        private string[] ReadTable(byte[] Data)
         {
             using var TableStream = new MemoryStream(Data);
             var TableReader = new StructReader(TableStream);
@@ -299,63 +204,34 @@ namespace ThreeHousesSlave
             var TableHeader = new Table();
             TableReader.ReadStruct(ref TableHeader);
 
-            TableEntries[TableHeader] = new List<object>();
+            if (TableHeader.Magic != 0x134C58)
+                throw new InvalidDataException("Invalid Table Magic");
+
+            TableReader.Position = TableHeader.HeaderSize;
+
+            uint[][] EntryTable = new uint[TableHeader.MessagesCount][];
+            for (int i = 0; i < EntryTable.Length; i++)
+            {
+                EntryTable[i] = new uint[TableHeader.PointerSize / 4];
+                for (int x = 0; x < EntryTable[i].Length; x++)
+                {
+                    EntryTable[i][x] = TableReader.ReadUInt32();
+                }
+            }
+
+            TableEntries[TableHeader] = EntryTable;
 
             TableReader.Position = TableHeader.HeaderSize;
 
             List<uint> Offsets = new List<uint>();
             for (int i = 0; i < TableHeader.MessagesCount; i++) 
             {
-                switch (Type)
+
+                var EntryInfo = EntryTable[i];
+                for (var x = 0; x < EntryInfo.Length; x++)
                 {
-                    case 0:
-                        var Table0 = new Table0Entry();
-                        TableReader.ReadStruct(ref Table0);
-                        Offsets.AddRange(Table0.Lines);
-                        TableEntries[TableHeader].Add(Table0);
-                        break;
-                    case 1:
-                        var Table1 = new Table1Entry();
-                        TableReader.ReadStruct(ref Table1);
-                        Offsets.AddRange(Table1.Lines);
-                        TableEntries[TableHeader].Add(Table1);
-                        break;
-                    case 2:
-                        var Table2 = new Table2Entry();
-                        TableReader.ReadStruct(ref Table2);
-                        Offsets.AddRange(Table2.Lines);
-                        TableEntries[TableHeader].Add(Table2);
-                        break;
-                    case 3:
-                        var Table3 = new Table3Entry();
-                        TableReader.ReadStruct(ref Table3);
-                        Offsets.AddRange(Table3.Lines);
-                        TableEntries[TableHeader].Add(Table3);
-                        break;
-                    case 4:
-                        var Table4 = new Table4Entry();
-                        TableReader.ReadStruct(ref Table4);
-                        Offsets.AddRange(Table4.Lines);
-                        TableEntries[TableHeader].Add(Table4);
-                        break;
-                    case 5:
-                        var Table5 = new Table5Entry();
-                        TableReader.ReadStruct(ref Table5);
-                        Offsets.AddRange(Table5.Lines);
-                        TableEntries[TableHeader].Add(Table5);
-                        break;
-                    case 6:
-                        var Table6 = new Table6Entry();
-                        TableReader.ReadStruct(ref Table6);
-                        Offsets.AddRange(Table6.Lines);
-                        TableEntries[TableHeader].Add(Table6);
-                        break;
-                    case 7:
-                        var Table7 = new Table7Entry();
-                        TableReader.ReadStruct(ref Table7);
-                        Offsets.AddRange(Table7.Lines);
-                        TableEntries[TableHeader].Add(Table7);
-                        break;
+                    if (TableHeader.Flags[x] == 0)
+                        Offsets.Add(EntryInfo[x]);
                 }
             }
 
@@ -372,7 +248,7 @@ namespace ThreeHousesSlave
             return Strings.ToArray();
         }
 
-        Dictionary<Table, List<object>> TableEntries = new Dictionary<Table, List<object>>();
+        Dictionary<Table, uint[][]> TableEntries = new Dictionary<Table, uint[][]>();
         byte[] WriteTable(string[] Strings, ref int Index, Table Table)
         {
             using var Stream = new MemoryStream();
@@ -381,111 +257,32 @@ namespace ThreeHousesSlave
             using var TableStream = new MemoryStream();
             var TableWriter = new StructWriter(TableStream);
 
-            var Entries = TableEntries[Table];
-
             TableWriter.WriteStruct(ref Table);
 
             while (TableWriter.Length < Table.HeaderSize)
                 TableWriter.Write((byte)0xFF);
 
+            var EntryTable = TableEntries[Table];
+
             int OffsetTableSize = Table.PointerSize * Table.MessagesCount;
 
             for (int i = 0; i < Table.MessagesCount; i++)
             {
-                switch (Entries[i])
+                var EntryInfo = EntryTable[i];
+                for (var x = 0; x < EntryInfo.Length; x++)
                 {
-                    case Table0Entry T0:
-                        for (int x = 0; x < T0.Lines.Length; x++)
-                        {
-                            if (T0.Lines[x] == uint.MaxValue)
-                                continue;
+                    if (Table.Flags[x] == 0)
+                    {
+                        if (EntryInfo[x] == uint.MaxValue)
+                            continue;
 
-                            T0.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-                        TableWriter.WriteStruct(ref T0);
-                        break;
-                    case Table1Entry T1:
-                        for (int x = 0; x < T1.Lines.Length; x++)
-                        {
-                            if (T1.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T1.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-                        TableWriter.WriteStruct(ref T1);
-                        break;
-                    case Table2Entry T2:
-                        for (int x = 0; x < T2.Lines.Length; x++)
-                        {
-                            if (T2.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T2.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-                        TableWriter.WriteStruct(ref T2);
-                        break;
-                    case Table3Entry T3:
-                        for (int x = 0; x < T3.Lines.Length; x++)
-                        {
-                            if (T3.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T3.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-                        TableWriter.WriteStruct(ref T3);
-                        break;
-                    case Table4Entry T4:
-                        for (int x = 0; x < T4.Lines.Length; x++)
-                        {
-                            if (T4.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T4.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-
-                        TableWriter.WriteStruct(ref T4);
-                        break;
-                    case Table5Entry T5:
-                        for (int x = 0; x < T5.Lines.Length; x++)
-                        {
-                            if (T5.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T5.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-
-                        TableWriter.WriteStruct(ref T5);
-                        break;
-                    case Table6Entry T6:
-                        for (int x = 0; x < T6.Lines.Length; x++)
-                        {
-                            if (T6.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T6.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-
-                        TableWriter.WriteStruct(ref T6);
-                        break;
-                    case Table7Entry T7:
-                        for (int x = 0; x < T7.Lines.Length; x++)
-                        {
-                            if (T7.Lines[x] == uint.MaxValue)
-                                continue;
-
-                            T7.Lines[x] = (uint)(StringWriter.Position + OffsetTableSize);
-                            StringWriter.WriteString(Strings[Index++], StringStyle.CString);
-                        }
-                        TableWriter.WriteStruct(ref T7);
-                        break;
+                        EntryInfo[x] = (uint)(StringWriter.Length + OffsetTableSize);
+                        StringWriter.WriteString(Strings[Index++], StringStyle.CString);
+                    }
                 }
+
+                foreach (var Data in EntryInfo)
+                    TableWriter.Write(Data);
             }
 
 

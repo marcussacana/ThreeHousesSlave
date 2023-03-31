@@ -1,4 +1,4 @@
-﻿//Updated time: 12/03/2023
+﻿//Updated time: 20/03/2023
 using System.Text;
 using System.Reflection;
 using System.Collections;
@@ -1266,7 +1266,7 @@ namespace AdvancedBinary
             byte[] Buff = new byte[2];
             int i = BaseStream.Read(Buff, 0, Buff.Length);
             BaseStream.Position -= i;
-            return BigEndian ? BitConverter.ToInt16(Buff, 0) : Tools.Reverse(BitConverter.ToInt16(Buff, 0));
+            return BigEndian ? Tools.Reverse(BitConverter.ToInt16(Buff, 0)) : BitConverter.ToInt16(Buff, 0);
         }
 
         internal int PeekInt()
@@ -1274,7 +1274,7 @@ namespace AdvancedBinary
             byte[] Buff = new byte[4];
             int i = BaseStream.Read(Buff, 0, Buff.Length);
             BaseStream.Position -= i;
-            return BigEndian ? BitConverter.ToInt32(Buff, 0) : Tools.Reverse(BitConverter.ToInt32(Buff, 0));
+            return BigEndian ? Tools.Reverse(BitConverter.ToInt32(Buff, 0)) : BitConverter.ToInt32(Buff, 0);
         }
 
         internal uint PeekUInt()
@@ -1282,7 +1282,7 @@ namespace AdvancedBinary
             byte[] Buff = new byte[4];
             int i = BaseStream.Read(Buff, 0, Buff.Length);
             BaseStream.Position -= i;
-            return BigEndian ? BitConverter.ToUInt32(Buff, 0) : Tools.Reverse(BitConverter.ToUInt32(Buff, 0));
+            return BigEndian ? Tools.Reverse(BitConverter.ToUInt32(Buff, 0)) : BitConverter.ToUInt32(Buff, 0);
         }
 
         internal long PeekLong()
