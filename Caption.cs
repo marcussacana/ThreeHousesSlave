@@ -118,7 +118,7 @@ namespace ThreeHousesSlave
 
                 var Reader = new StructReader(Stream);
 
-                if (Reader.PeekInt() != 0x62290000)
+                if (Reader.PeekInt() != 0x2962)
                     return false;
 
                 CaptionHeader Header = new CaptionHeader();
